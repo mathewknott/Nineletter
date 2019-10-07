@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <RuntimeFrameworkVersion>2.1.0</RuntimeFrameworkVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <AssemblyName>NineLetter.Web</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <PackageId>NineLetter.Web</PackageId>
+    <UserSecretsId>aspnet-NineLetter.Web-2767d251-86a9-41bc-bc75-652e8849f753</UserSecretsId>
+   </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="wwwroot\**\*">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+ 
+    <PackageReference Include="Microsoft.AspNetCore.All" Version="2.1.0" />
+	<PackageReference Include="Swashbuckle.AspNetCore" Version="2.4.0" />
+	<PackageReference Include="System.Linq.Dynamic.Core" Version="1.0.8.9" />
+	<PackageReference Include="System.ValueTuple" Version="4.5.0" />  
+  </ItemGroup>
+  <Target Name="PrepublishScript" BeforeTargets="PrepareForPublish">
+    <Exec Command="bower install" />
+    <Exec Command="dotnet bundle" />
+  </Target>
+
+  <ItemGroup>
+    <DotNetCliToolReference Include="BundlerMinifier.Core" Version="2.2.301" />
+    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
+  </ItemGroup>
+
+</Project>

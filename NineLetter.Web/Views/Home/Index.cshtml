@@ -1,0 +1,116 @@
+﻿@using NineLetter.Web.Models
+@model BasePage
+@{
+    ViewBag.Title = "Words " + @Model.Result.Pattern;
+    ViewBag.Description = " Nine Letter word game puzzle wheel " + @Model.Result.Pattern + ". Find words using a middle character.";
+}
+<div class="col-md-4">
+    <h1>Nine Letter Word Game</h1>
+    <p><a href="#howtoplay">How to play</a></p>
+
+    @if (Model.Result != null)
+    {
+        var t = Model.Result.Patterns.FirstOrDefault();
+
+        if (t != null && t.Pattern != null)
+        {
+            <p>Today's Pattern.</p>
+        }
+    }
+
+    @if (Model.Result.Pattern != null)
+    {
+        <div class="table-responsive margintop15">
+            <table class="pattern table text-center table-bordered table-hover">
+                <tr>
+                    <td>@Model.Result.Pattern[0]</td>
+                    <td>@Model.Result.Pattern[1]</td>
+                    <td>@Model.Result.Pattern[2]</td>
+                </tr>
+                <tr>
+                    <td>@Model.Result.Pattern[3]</td>
+                    <td class="active"><b>@Model.Result.Pattern[4]</b></td>
+                    <td>@Model.Result.Pattern[5]</td>
+                </tr>
+                <tr>
+                    <td>@Model.Result.Pattern[6]</td>
+                    <td>@Model.Result.Pattern[7]</td>
+                    <td>@Model.Result.Pattern[8]</td>
+                </tr>
+            </table>
+        </div>
+        <p class="btn btn-primary viewResults">Hide/Show Possible Words (@Model.Result.PossibleWords)</p>
+        <div class="results margintop15">
+            @{foreach (var word in Model.Result.Words)
+                {
+                    <a href="http://www.google.com/search?q=define:@word.Word" target="_blank">@word.Word</a>
+                }
+            }
+        </div>
+        <!-- Small Text Minimal --><ins class="adsbygoogle adslot_2 margintop15" style="display:block" data-ad-client="ca-pub-6846950594607946" data-ad-slot="2938204567" data-ad-format="auto"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+                }
+</div>
+<div class="col-md-4">
+    <h3>More Patterns</h3>
+    @foreach (var pattern in Model.Result.Patterns)
+    {
+        <a class="@(Model.Result.Pattern == pattern.Pattern ? Html.Raw("active") : Html.Raw(""))" href="/@pattern.Pattern">@pattern.Pattern</a> @Html.Raw("Possible Words: ") @pattern.PossibleWords <br />
+    }
+</div>
+<div class="col-md-4" id="howtoplay">
+    <h3>How to play</h3>
+    <p>
+        See how many words you can find in the pattern with a minimum of 4 characters.
+        <br/>Each word must contain the middle letter.
+    </p>
+    <h3>Validate Pattern</h3>
+    <div>
+        <p id="validateMessage">@Model.Message</p>
+    </div>
+    <p>
+        If you have an existing pattern and you want to validate it and match it against the word list, enter it into the url or below. <strong>Make sure the key middle letter is the middle digit you enter.</strong>
+        <br/>
+        <div id="loading">
+            <img src="~/images/loading.gif" alt=""/>
+        </div>
+        </p>
+
+    <form action="/api/ValidatePattern/"
+          data-ajax="true"
+          data-ajax-mode="replace"
+          data-ajax-method="GET"
+          data-ajax-update="#validateMessage"
+          data-ajax-begin="onBegin(status, xhr)"
+          data-ajax-success="onSuccess(data, status, xhr)"
+          data-ajax-failure="onFailure(status, xhr)"
+          data-ajax-update="#validateMessage"
+          data-ajax-loading="#loading"
+          id="form1"
+          method="get">
+
+        <input type="text"
+               maxlength="9"
+               placeholder="Enter 9 letters"
+               title="Enter 9 letters"
+               name="patternInput"
+               class="form-control"
+               id="patternInput" />
+        <br />
+
+        <input type="submit" class="btn btn-primary" value="Validate" />
+
+    </form>
+
+    <!-- Large Rectangle 1 --><ins class="adsbygoogle adslot_3" style="display: block;" data-ad-client="ca-pub-6846950594607946" data-ad-slot="7647605760"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+@section Scripts {
+<script>
+    $('.viewResults').click(function () {
+        $('.results').slideToggle(1000);
+        $('.viewResults').text('Hide/Show Possbile Words (@Model.Result.PossibleWords)');
+        return false;
+    });
+</script>
+}

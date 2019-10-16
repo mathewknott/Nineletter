@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using NineLetter.Web.Models;
-using NineLetter.Web.Models.NineLetter;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
+using NineLetter.Web.Interfaces;
+using NineLetter.Web.Models;
 
 namespace NineLetter.Web.Controllers
 {
@@ -22,7 +19,7 @@ namespace NineLetter.Web.Controllers
         private readonly IOptions<NineLetterConfig> _optionsAccessor;
         private readonly IFileProvider _fileProvider;
         private readonly IMemoryCache _memoryCache;
-        private readonly IHostingEnvironment _hosting;
+        private readonly INineLetterService _nineLetterService;
 
         /// <summary>
         /// 
@@ -30,13 +27,13 @@ namespace NineLetter.Web.Controllers
         /// <param name="optionsAccessor"></param>
         /// <param name="fileProvider"></param>
         /// <param name="memoryCache"></param>
-        /// <param name="hosting"></param>
-        public HomeController(IOptions<NineLetterConfig> optionsAccessor, IFileProvider fileProvider, IMemoryCache memoryCache, IHostingEnvironment hosting)
+        /// <param name="nineLetterService"></param>
+        public HomeController(IOptions<NineLetterConfig> optionsAccessor, IFileProvider fileProvider, IMemoryCache memoryCache, INineLetterService nineLetterService)
         {
             _optionsAccessor = optionsAccessor;
             _fileProvider = fileProvider;
             _memoryCache = memoryCache;
-            _hosting = hosting;
+            _nineLetterService = nineLetterService;
         }
 
         /// <summary>
@@ -49,7 +46,7 @@ namespace NineLetter.Web.Controllers
         [ApiExplorerSettings(IgnoreApi = true)]
         public IActionResult Index(string patternInput)
         {
-            var patterns = Patterns().ToList();
+            var patterns = Patterns().Result.ToList();
 
             if (string.IsNullOrEmpty(patternInput) || patternInput.Length != 9)
             {
@@ -65,13 +62,13 @@ namespace NineLetter.Web.Controllers
                             Pattern = pattern.Pattern,
                             PossibleWords = pattern.PossibleWords,
                             Words = pattern.Words,
-                            LongestWord = pattern.Words.Last().Word
+                            LongestWord = pattern.Words.Last()
                         }
                     });
                 }
             }
 
-            var patternInputResult = patterns.FirstOrDefault(x => x.Pattern == patternInput);
+            var patternInputResult = patterns.FirstOrDefault(x => x.Pattern.Equals(patternInput, StringComparison.CurrentCultureIgnoreCase));
 
             if (patternInputResult != null)
             {
@@ -83,7 +80,7 @@ namespace NineLetter.Web.Controllers
                         Pattern = patternInputResult.Pattern,
                         PossibleWords = patternInputResult.PossibleWords,
                         Words = patternInputResult.Words,
-                        LongestWord = patternInputResult.Words.Last().Word
+                        LongestWord = patternInputResult.Words.Last()
                     }
                 });
             }
@@ -97,53 +94,52 @@ namespace NineLetter.Web.Controllers
                 }
             });
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<Result> Patterns()
+        public async Task<IEnumerable<Result>> PatternList()
         {
-            var cacheKey = "Patterns";
-            IEnumerable<Result> patterns;
-
-            if (_memoryCache.TryGetValue(cacheKey, out patterns))
+            if (_memoryCache.TryGetValue("Patterns", out IEnumerable<Result> _))
             {
-                return (IEnumerable<Result>)_memoryCache.Get(cacheKey);
+                return (IEnumerable<Result>)_memoryCache.Get("Patterns");
             }
 
             var r = new List<Result>();
 
-            var patternList = PatternGenerator.GetPatterns(_optionsAccessor.Value.PatternsToGenerate);
+            var patternList = await _nineLetterService.GetPatterns(_optionsAccessor.Value.PatternsToGenerate);
 
             foreach (var pattern in patternList)
             {
-                var wordResults = TextUtility.ProcessTextFile(_fileProvider.GetFileInfo(_optionsAccessor.Value.FileLocation).PhysicalPath, pattern.Pattern, _optionsAccessor.Value.MinLettersLength, _optionsAccessor.Value.IgnoreProperNouns, pattern.Pattern[4]);
+                var wordResults = _nineLetterService.ProcessTextFile(
+                    _fileProvider.GetFileInfo(_optionsAccessor.Value.FileLocation).PhysicalPath, 
+                    pattern.Pattern, _optionsAccessor.Value.MinLettersLength,
+                    _optionsAccessor.Value.IgnoreProperNouns,
+                    pattern.Pattern[4])?.ToList();
 
-                var results = new Result
+                if (wordResults != null && wordResults.Any())
                 {
-                    Pattern = pattern.Pattern
-                };
+                    var results = new Result
+                    {
+                        Pattern = pattern.Pattern,
+                        Words = wordResults,
+                        PossibleWords = wordResults.Count,
+                        LongestWord = wordResults.Last()
+                    };
 
-                var enumerable = wordResults as IList<WordResult> ?? wordResults.ToList();
-
-                if (enumerable.Any())
-                {
-                    results.Words = enumerable;
-                    results.PossibleWords = enumerable.Count;
-                    results.LongestWord = enumerable.Last()?.Word;
+                    r.Add(results);
                 }
-                r.Add(results);
             }
 
-            var l = r.ToList().OrderByDescending(p => p.PossibleWords).ToList();
+            var l = r.OrderByDescending(p => p.PossibleWords).ToList();
 
             // keep item in cache as long as it is requested at least
             // once every 5 minutes...
             // but in any case make sure to refresh it every hour
 
             // store in the cache
-            _memoryCache.Set(cacheKey, l, new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(5))
+            _memoryCache.Set("Patterns", l, new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(5))
               .SetAbsoluteExpiration(TimeSpan.FromHours(1)));
 
             return l;
@@ -152,85 +148,30 @@ namespace NineLetter.Web.Controllers
         /// <summary>
         /// Returns all available patterns
         /// </summary>
-        [ResponseCache(Duration = 3660, VaryByHeader = "User-Agent")]
-        [Route("api/pj")]
+        [Route("Patterns")]
         [HttpGet]
-        public IActionResult Pj()
+        public async Task<IEnumerable<Result>> Patterns()
         {
-            var tempList = JsonConvert.SerializeObject(Patterns());
-            return tempList == null ? null : new ContentResult { Content = tempList, ContentType = "application/json" };
+            return await PatternList();
         }
 
         /// <summary>
         /// Validates a pattern.
         /// </summary>
         /// <param name="patternInput"></param>
-        [HttpPost]
-        [Route("api/validate/{patternInput}")]
-        public IActionResult Validate(string patternInput)
+        [HttpGet]
+        [Route("validate/ValidatePattern/{patternInput:length(9)?}")]
+        public Result Validate(string patternInput)
         {
             if (patternInput == "" || patternInput.Length != 9)
             {
-                ModelState.AddModelError("ValidatePattern", "The pattern cannot be validated.");
-                var errorList = JsonConvert.SerializeObject(ModelState.Values.Where(x => x.Errors.Count > 0), Formatting.None, new JsonSerializerSettings { ReferenceLoopHandling = ReferenceLoopHandling.Ignore });
-                return Json(new { success = "fail", errorList });
+                return new Result();
             }
 
-            var item = Patterns().FirstOrDefault(x => x.Pattern.Equals(patternInput, StringComparison.CurrentCultureIgnoreCase));
+            var result = PatternList().Result.SingleOrDefault(x =>
+                x.Pattern.Equals(patternInput, StringComparison.CurrentCultureIgnoreCase));
 
-            var tempList = JsonConvert.SerializeObject(item);
-            return tempList == null ? null : new ContentResult { Content = tempList, ContentType = "application/json" };
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="patternInput"></param>
-        /// <returns></returns>
-        [HttpGet]
-        [Route("api/validatepattern/")]
-        public IActionResult ValidatePattern(string patternInput)
-        {
-            if (string.IsNullOrEmpty(patternInput) || patternInput.Length != 9)
-            {
-                ModelState.AddModelError("ValidatePattern", "The pattern cannot be validated.");
-                var errorList = JsonConvert.SerializeObject(ModelState.Values.Where(x => x.Errors.Count > 0), Formatting.None, new JsonSerializerSettings { ReferenceLoopHandling = ReferenceLoopHandling.Ignore });
-                return Json(new { success = "fail", errorList });
-            }
-
-            var item = Patterns().FirstOrDefault(x => x.Pattern.Equals(patternInput, StringComparison.CurrentCultureIgnoreCase));
-
-            if (item == null)
-            {
-                ModelState.AddModelError("ValidatePattern", "The pattern cannot be found.");
-                var errorList = JsonConvert.SerializeObject(ModelState.Values.Where(x => x.Errors.Count > 0), Formatting.None, new JsonSerializerSettings { ReferenceLoopHandling = ReferenceLoopHandling.Ignore });
-                return Json(new { success = "fail", errorList });
-            }
-
-            return Json(patternInput);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="statusCode"></param>
-        /// <returns></returns>
-        public IActionResult Error(int? statusCode = null)
-        {
-            var feature = HttpContext.Features.Get<IStatusCodeReExecuteFeature>();
-            ViewBag.ErrorUrl = feature?.OriginalPath;
-            
-            if (statusCode.HasValue)
-            {
-                if (statusCode == 404 || statusCode == 500)
-                {
-                    ViewBag.StatusCode = statusCode + " Error";
-
-                    var viewName = statusCode + ".cshtml";
-                    return View("~/Views/Shared/ErrorPages/" + viewName);
-                }
-            }
-            return View("~/Views/Shared/ErrorPages/error.cshtml");
+            return result ?? new Result();
         }
     }
 }

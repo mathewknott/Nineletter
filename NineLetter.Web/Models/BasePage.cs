@@ -1,16 +1,21 @@
-﻿using NineLetter.Web.Models.NineLetter;
-
-namespace NineLetter.Web.Models
+﻿namespace NineLetter.Web.Models
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class BasePage
     {
+        /// <summary>
+        /// 
+        /// </summary>
         public BasePage()
         {
             Result = new Result();
-            Message = string.Empty;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public Result Result { get; set; }
-        public string Message { get; set; }
     }
 }

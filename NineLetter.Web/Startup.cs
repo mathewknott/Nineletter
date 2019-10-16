@@ -2,7 +2,7 @@
 using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,12 +10,21 @@ using Microsoft.Extensions.Logging;
 using NineLetter.Web.Data;
 using NineLetter.Web.Models;
 using Microsoft.Extensions.PlatformAbstractions;
+using NineLetter.Web.Interfaces;
+using NineLetter.Web.Services;
 using Swashbuckle.AspNetCore.Swagger;
 
 namespace NineLetter.Web
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class Startup
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="env"></param>
         public Startup(IHostingEnvironment env)
         {
             var builder = new ConfigurationBuilder()
@@ -33,11 +42,20 @@ namespace NineLetter.Web
 
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public IConfigurationRoot Configuration { get; }
 
-        private IHostingEnvironment _hostingEnvironment;
+        /// <summary>
+        /// 
+        /// </summary>
+        private readonly IHostingEnvironment _hostingEnvironment;
 
-        // This method gets called by the runtime. Use this method to add services to the container.
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
         {
             // Add framework services.
@@ -56,7 +74,6 @@ namespace NineLetter.Web
                     Version = "v1",
                     Title = "Nine Letter Game API",
                     Description = "Nine Letter Game",
-                    TermsOfService = "None",
                     Contact = new Contact { Name = "Mathew Knott", Email = "", Url = "http://mathewknott.com" }
                 });
             });
@@ -71,20 +88,27 @@ namespace NineLetter.Web
 
             var physicalProvider = _hostingEnvironment.ContentRootFileProvider;
             services.AddSingleton(physicalProvider);
-
+            
+			services.AddTransient<INineLetterService, NineLetterService>();
+			
             services.AddMemoryCache();
             services.AddSession(options =>
             {
                 options.IdleTimeout = TimeSpan.FromMinutes(60);
-                options.CookieName = ".NineLetter";
+                options.Cookie.Name = ".NineLetter";
             });
                         
             services.Configure<NineLetterConfig>(
                 Configuration.GetSection("NineLetter"));
-
+            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="app"></param>
+        /// <param name="env"></param>
+        /// <param name="loggerFactory"></param>
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
@@ -109,7 +133,7 @@ namespace NineLetter.Web
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Acme Fun Events API");
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Nine Letter Word Game API");
             });
             app.UseMvc(routes =>
             {

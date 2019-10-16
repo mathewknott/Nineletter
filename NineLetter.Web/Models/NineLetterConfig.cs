@@ -1,5 +1,8 @@
 ﻿namespace NineLetter.Web.Models
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class NineLetterConfig
     {
         public int MinLettersLength { get; set; }
